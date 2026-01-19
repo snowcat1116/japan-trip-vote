@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>=洪=家族 日本旅遊投票 (安全版)</title>
+    <title>日本旅遊投票</title>
     <style>
         /* ================= 深色模式配色 ================= */
         :root {
@@ -24,7 +24,7 @@
             background-color: var(--bg-color);
             color: var(--text-main);
             margin: 0;
-            padding: 0; /* 登入頁需要全螢幕 */
+            padding: 0;
         }
 
         /* === 登入遮罩層 === */
@@ -65,9 +65,9 @@
         }
         .login-btn:hover { background: var(--accent); }
 
-        /* === 主程式容器 (預設隱藏) === */
+        /* === 主程式容器 === */
         #appContainer {
-            display: none; /* 登入成功才顯示 */
+            display: none;
             padding: 20px;
             padding-bottom: 100px;
             max-width: 900px; 
@@ -83,7 +83,6 @@
             position: sticky; top: 10px; z-index: 100;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        .user-title { font-size: 0.9em; color: var(--text-sub); margin-bottom: 10px; }
         .user-btn {
             margin: 5px; padding: 8px 16px;
             border: 1px solid var(--primary); background: transparent; color: var(--primary);
@@ -102,15 +101,38 @@
 
         .spot-card {
             background: var(--card-bg); padding: 15px; margin-bottom: 15px;
-            border-radius: 10px; display: flex; justify-content: space-between; align-items: flex-start;
+            border-radius: 10px; display: flex; flex-direction: column;
             border: 1px solid var(--border);
         }
+        
+        .spot-content {
+            display: flex; justify-content: space-between; align-items: flex-start; width: 100%;
+        }
+
         .spot-info { flex: 1; margin-right: 15px; }
         .spot-id { display: inline-block; background: #333; color: #888; font-size: 0.75em; padding: 2px 6px; border-radius: 4px; margin-bottom: 5px; }
         .spot-title { font-size: 1.15em; font-weight: bold; color: var(--text-main); margin-bottom: 6px; line-height: 1.4; }
         .spot-note { font-size: 0.9em; color: var(--text-sub); margin-bottom: 8px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; }
-        .spot-link { display: inline-block; color: var(--accent); text-decoration: none; font-size: 0.9em; border: 1px solid var(--accent); padding: 4px 10px; border-radius: 4px; margin-top: 5px; }
         
+        .link-group {
+            margin-top: 8px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .spot-link, .map-toggle-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 0.85em; padding: 4px 10px; border-radius: 4px;
+            text-decoration: none; cursor: pointer; transition: 0.2s;
+        }
+
+        .spot-link { color: var(--accent); border: 1px solid var(--accent); }
+        .spot-link:hover { background: rgba(3, 218, 198, 0.1); }
+
+        .map-toggle-btn { color: #fff; background-color: #333; border: 1px solid #555; }
+        .map-toggle-btn:hover { background-color: #444; }
+
         .vote-box { text-align: center; min-width: 80px; display: flex; flex-direction: column; align-items: center; }
         .vote-btn { background: none; border: none; font-size: 2rem; cursor: pointer; color: #555; transition: transform 0.2s; padding: 0; line-height: 1; }
         .vote-btn.voted { color: var(--vote-active); transform: scale(1.15); text-shadow: 0 0 10px rgba(207, 102, 121, 0.5); }
@@ -119,11 +141,27 @@
             background: rgba(187, 134, 252, 0.1); padding: 4px 8px; border-radius: 6px; min-width: 60px;
         }
 
+        /* === 地圖區塊 === */
+        .map-container {
+            width: 100%;
+            height: 0;
+            overflow: hidden;
+            margin-top: 0;
+            border-radius: 8px;
+            transition: height 0.3s ease, margin-top 0.3s ease;
+        }
+        .map-container.show {
+            height: 300px;
+            margin-top: 15px;
+            border: 1px solid #444;
+        }
+        iframe { width: 100%; height: 100%; border: 0; }
+
         /* === 底部與載入 === */
         .footer-controls {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: rgba(30, 30, 30, 0.95); padding: 15px; text-align: center;
-            border-top: 1px solid var(--border); display: none; /* 預設隱藏 */
+            border-top: 1px solid var(--border); display: none;
         }
         .export-btn {
             background-color: var(--accent); color: #000;
@@ -190,15 +228,11 @@
     ];
 
     let currentUser = localStorage.getItem('japan_trip_user_secure') || null;
-    let currentPassword = ""; // 暫存密碼
+    let currentPassword = "";
     let allSpots = [];
 
-    // 鍵盤 Enter 登入
-    function handleEnter(e) {
-        if(e.key === "Enter") performLogin();
-    }
+    function handleEnter(e) { if(e.key === "Enter") performLogin(); }
 
-    // 執行登入
     async function performLogin() {
         const pass = document.getElementById('passwordInput').value;
         const msg = document.getElementById('loginMsg');
@@ -214,26 +248,17 @@
         try {
             const res = await fetch(`${GAS_API_URL}?action=read&password=${pass}`);
             const json = await res.json();
-            
-            console.log("API回傳內容:", json); // 在 F12 Console 顯示回傳結果，方便除錯
 
             if (json.error) {
                 msg.textContent = "❌ " + json.error;
                 document.getElementById('loading').style.display = 'none';
             } else {
-                // ★★★ 關鍵修正：相容性檢查 ★★★
-                // 如果 GAS 是舊版，可能會回傳陣列；如果是新版，會回傳 {data: [...]}
-                if (Array.isArray(json)) {
-                    allSpots = json;
-                } else if (json.data && Array.isArray(json.data)) {
-                    allSpots = json.data;
-                } else {
-                    allSpots = []; // 如果都不是，就給空陣列，避免當機
-                }
+                if (Array.isArray(json)) allSpots = json;
+                else if (json.data && Array.isArray(json.data)) allSpots = json.data;
+                else allSpots = [];
 
                 currentPassword = pass;
                 
-                // 切換介面
                 document.getElementById('loginOverlay').style.display = 'none';
                 document.getElementById('appContainer').style.display = 'block';
                 document.getElementById('footerControls').style.display = 'block';
@@ -242,7 +267,7 @@
                 initApp();
             }
         } catch (e) {
-            msg.textContent = "⚠️ 連線失敗，請檢查網路或密碼";
+            msg.textContent = "⚠️ 連線失敗，請檢查網路";
             console.error(e);
             document.getElementById('loading').style.display = 'none';
         }
@@ -293,12 +318,8 @@
 
     function groupByZone(spots) {
         const groups = {};
-        // ★★★ 加入這一行安全檢查 ★★★
-        if (!spots || !Array.isArray(spots)) {
-            console.warn("沒有景點資料，無法分組");
-            return groups;
-        }
-
+        if (!spots || !Array.isArray(spots)) return groups;
+        
         spots.forEach(spot => {
             const match = spot.note ? spot.note.match(/^\[(.*?)\]/) : null;
             let groupName = match ? match[1] : "未分類 / 其他";
@@ -315,26 +336,56 @@
             ? `<div class="voter-list">${voterNames}</div>`
             : `<div class="voter-list" style="background:transparent; color:#555;">尚無票數</div>`;
 
-        let linkHtml = '<span style="color:#666; font-size:0.9em;">(無連結)</span>';
+        let linkHtml = '';
         if (spot.link && spot.link.startsWith('http')) {
-            linkHtml = `<a href="${spot.link}" target="_blank" class="spot-link">🌏 開啟連結</a>`;
+            linkHtml = `<a href="${spot.link}" target="_blank" class="spot-link">🌏 開啟網頁</a>`;
+        } else {
+            linkHtml = `<span style="color:#666; font-size:0.8em; padding:4px;">(無外部連結)</span>`;
         }
 
         const card = document.createElement('div');
         card.className = 'spot-card';
         card.innerHTML = `
-            <div class="spot-info">
-                <span class="spot-id">#${spot.id}</span>
-                <div class="spot-title">${esc(spot.name)}</div>
-                <div class="spot-note">${esc(spot.note)}</div>
-                ${linkHtml}
+            <div class="spot-content">
+                <div class="spot-info">
+                    <span class="spot-id">#${spot.id}</span>
+                    <div class="spot-title">${esc(spot.name)}</div>
+                    <div class="spot-note">${esc(spot.note)}</div>
+                    <div class="link-group">
+                        ${linkHtml}
+                        <button class="map-toggle-btn" onclick="toggleMap(${spot.id}, '${esc(spot.name)}')">🗺️ 顯示地圖</button>
+                    </div>
+                </div>
+                <div class="vote-box">
+                    <button class="vote-btn ${isVoted ? 'voted' : ''}" onclick="vote(${spot.id})">❤</button>
+                    ${voterHtml}
+                </div>
             </div>
-            <div class="vote-box">
-                <button class="vote-btn ${isVoted ? 'voted' : ''}" onclick="vote(${spot.id})">❤</button>
-                ${voterHtml}
-            </div>
+            <div id="map-${spot.id}" class="map-container"></div>
         `;
         return card;
+    }
+
+    // ★★★ 修正點：加入 &hl=zh-TW 強制顯示繁體中文 ★★★
+    function toggleMap(id, name) {
+        const mapContainer = document.getElementById(`map-${id}`);
+        
+        if (mapContainer.classList.contains('show')) {
+            mapContainer.classList.remove('show');
+            setTimeout(() => { mapContainer.innerHTML = ''; }, 300);
+            return;
+        }
+
+        mapContainer.classList.add('show');
+        
+        let searchName = name.replace(/\[.*?\]/g, '').trim(); 
+        
+        // 這裡加上了 &hl=zh-TW
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://maps.google.com/maps?q=${encodeURIComponent(searchName)}&t=&z=15&ie=UTF8&iwloc=&output=embed&hl=zh-TW`;
+        iframe.loading = "lazy";
+        
+        mapContainer.appendChild(iframe);
     }
 
     async function vote(id) {
@@ -353,7 +404,6 @@
         }
         renderGroups(); 
 
-        // 投票也要帶密碼
         try {
             await fetch(`${GAS_API_URL}?action=vote&id=${id}&user=${currentUser}&password=${currentPassword}`);
         } catch (e) {
@@ -412,7 +462,7 @@
 
     function esc(str) {
         if (!str) return '';
-        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return str.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 </script>
 </body>
