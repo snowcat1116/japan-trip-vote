@@ -68,32 +68,75 @@
         /* === 主程式容器 === */
         #appContainer {
             display: none;
-            padding: 20px;
+            padding: 15px;
             padding-bottom: 100px;
             max-width: 900px; 
             margin: 0 auto;
         }
 
-        h1 { text-align: center; color: var(--primary); margin-bottom: 20px; }
+        h1 { text-align: center; color: var(--primary); margin-bottom: 10px; margin-top: 10px; }
 
-        /* === 使用者切換區 === */
+        /* === 浮動置頂區 (搜尋+使用者) === */
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: var(--bg-color);
+            padding-top: 5px;
+            padding-bottom: 15px;
+            box-shadow: 0 10px 20px -10px rgba(0,0,0,0.5);
+        }
+
+        /* 搜尋框樣式 */
+        .search-container {
+            position: relative;
+            margin-bottom: 10px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            padding-left: 40px;
+            border-radius: 30px;
+            border: 1px solid var(--primary);
+            background: var(--card-bg);
+            color: white;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: box-shadow 0.3s;
+        }
+        .search-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(187, 134, 252, 0.4);
+            border-color: var(--accent);
+        }
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-sub);
+        }
+
+        /* 使用者切換區 */
         .user-panel {
-            background: var(--card-bg); padding: 15px; border-radius: 12px;
-            margin-bottom: 25px; text-align: center; border: 1px solid var(--border);
-            position: sticky; top: 10px; z-index: 100;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            background: var(--card-bg); 
+            padding: 10px; 
+            border-radius: 12px;
+            text-align: center; 
+            border: 1px solid var(--border);
         }
         .user-btn {
-            margin: 5px; padding: 8px 16px;
+            margin: 3px; padding: 6px 14px;
             border: 1px solid var(--primary); background: transparent; color: var(--primary);
             border-radius: 20px; cursor: pointer; transition: all 0.3s; font-weight: bold;
+            font-size: 0.9rem;
         }
         .user-btn.active { background: var(--primary); color: #000; box-shadow: 0 0 10px rgba(187, 134, 252, 0.4); }
 
         /* === 區域與卡片 === */
         .zone-header {
             background: var(--section-header-bg); color: var(--accent);
-            padding: 12px 15px; border-radius: 8px; margin-top: 30px; margin-bottom: 15px;
+            padding: 12px 15px; border-radius: 8px; margin-top: 20px; margin-bottom: 15px;
             font-size: 1.2em; font-weight: bold; border-left: 5px solid var(--accent);
             display: flex; justify-content: space-between; align-items: center;
         }
@@ -111,6 +154,7 @@
 
         .spot-info { flex: 1; margin-right: 15px; }
         .spot-id { display: inline-block; background: #333; color: #888; font-size: 0.75em; padding: 2px 6px; border-radius: 4px; margin-bottom: 5px; }
+        
         .spot-title { font-size: 1.15em; font-weight: bold; color: var(--text-main); margin-bottom: 6px; line-height: 1.4; }
         .spot-note { font-size: 0.9em; color: var(--text-sub); margin-bottom: 8px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; }
         
@@ -161,7 +205,7 @@
         .footer-controls {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: rgba(30, 30, 30, 0.95); padding: 15px; text-align: center;
-            border-top: 1px solid var(--border); display: none;
+            border-top: 1px solid var(--border); display: none; z-index: 200;
         }
         .export-btn {
             background-color: var(--accent); color: #000;
@@ -201,9 +245,14 @@
 <div id="appContainer">
     <h1>🇯🇵 日本旅遊投票</h1>
     
-    <div class="user-panel">
-        <div class="user-title">👤 請點選名字切換身分</div>
-        <div id="userBtns"></div>
+    <div class="sticky-header">
+        <div class="search-container">
+            <span class="search-icon">🔍</span>
+            <input type="search" id="searchInput" class="search-input" placeholder="搜尋景點..." oninput="handleSearch(this.value)">
+        </div>
+        <div class="user-panel">
+            <div id="userBtns"></div>
+        </div>
     </div>
 
     <div id="spotContainer"></div>
@@ -229,20 +278,49 @@
 
     let currentUser = localStorage.getItem('japan_trip_user_secure') || null;
     let currentPassword = "";
-    let allSpots = [];
+    let allSpots = []; 
+    let displayedSpots = []; 
+
+    // ★★★ 程式啟動時檢查是否已登入 ★★★
+    window.onload = function() {
+        checkAutoLogin();
+    };
+
+    function checkAutoLogin() {
+        const storedAuth = localStorage.getItem('japan_trip_auth');
+        if (storedAuth) {
+            try {
+                const authData = JSON.parse(storedAuth);
+                const now = new Date().getTime();
+                
+                // 檢查是否過期 (expiry 是時間戳)
+                if (authData.expiry && now < authData.expiry) {
+                    // 自動填入密碼並登入
+                    document.getElementById('passwordInput').value = authData.password;
+                    performLogin(true); // true 代表這是自動登入，不顯示錯誤訊息
+                } else {
+                    // 過期了，清除存檔
+                    localStorage.removeItem('japan_trip_auth');
+                }
+            } catch (e) {
+                console.error("Auth data parse error", e);
+                localStorage.removeItem('japan_trip_auth');
+            }
+        }
+    }
 
     function handleEnter(e) { if(e.key === "Enter") performLogin(); }
 
-    async function performLogin() {
+    async function performLogin(isAuto = false) {
         const pass = document.getElementById('passwordInput').value;
         const msg = document.getElementById('loginMsg');
         
         if (!pass) {
-            msg.textContent = "請輸入密碼";
+            if(!isAuto) msg.textContent = "請輸入密碼";
             return;
         }
 
-        msg.textContent = "";
+        if(!isAuto) msg.textContent = "";
         document.getElementById('loading').style.display = 'flex';
 
         try {
@@ -250,15 +328,25 @@
             const json = await res.json();
 
             if (json.error) {
-                msg.textContent = "❌ " + json.error;
+                if(!isAuto) msg.textContent = "❌ " + json.error;
                 document.getElementById('loading').style.display = 'none';
+                // 如果是自動登入失敗 (例如密碼改了)，清除存檔
+                if(isAuto) localStorage.removeItem('japan_trip_auth');
             } else {
+                // 處理資料回傳格式
                 if (Array.isArray(json)) allSpots = json;
                 else if (json.data && Array.isArray(json.data)) allSpots = json.data;
                 else allSpots = [];
 
+                displayedSpots = [...allSpots];
                 currentPassword = pass;
                 
+                // ★★★ 登入成功，儲存密碼 15 天 ★★★
+                const expiryTime = new Date().getTime() + (15 * 24 * 60 * 60 * 1000); // 15天
+                const authData = { password: pass, expiry: expiryTime };
+                localStorage.setItem('japan_trip_auth', JSON.stringify(authData));
+
+                // 切換畫面
                 document.getElementById('loginOverlay').style.display = 'none';
                 document.getElementById('appContainer').style.display = 'block';
                 document.getElementById('footerControls').style.display = 'block';
@@ -267,7 +355,7 @@
                 initApp();
             }
         } catch (e) {
-            msg.textContent = "⚠️ 連線失敗，請檢查網路";
+            if(!isAuto) msg.textContent = "⚠️ 連線失敗，請檢查網路";
             console.error(e);
             document.getElementById('loading').style.display = 'none';
         }
@@ -275,7 +363,21 @@
 
     function initApp() {
         renderUserBtns();
-        renderGroups();
+        renderGroups(displayedSpots);
+    }
+
+    function handleSearch(keyword) {
+        keyword = keyword.toLowerCase().trim();
+        if (!keyword) {
+            displayedSpots = [...allSpots];
+        } else {
+            displayedSpots = allSpots.filter(spot => {
+                const name = (spot.name || "").toLowerCase();
+                const note = (spot.note || "").toLowerCase();
+                return name.includes(keyword) || note.includes(keyword);
+            });
+        }
+        renderGroups(displayedSpots);
     }
 
     function renderUserBtns() {
@@ -289,17 +391,22 @@
                 currentUser = u.id;
                 localStorage.setItem('japan_trip_user_secure', u.id);
                 renderUserBtns();
-                renderGroups(); 
+                renderGroups(displayedSpots);
             };
             container.appendChild(btn);
         });
     }
 
-    function renderGroups() {
+    function renderGroups(spotsToRender) {
         const container = document.getElementById('spotContainer');
         container.innerHTML = '';
         
-        const groups = groupByZone(allSpots);
+        if (!spotsToRender || spotsToRender.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">❌ 找不到符合的景點</div>';
+            return;
+        }
+
+        const groups = groupByZone(spotsToRender);
         const sortedGroupKeys = Object.keys(groups).sort();
 
         sortedGroupKeys.forEach(groupName => {
@@ -366,7 +473,6 @@
         return card;
     }
 
-    // ★★★ 修正點：加入 &hl=zh-TW 強制顯示繁體中文 ★★★
     function toggleMap(id, name) {
         const mapContainer = document.getElementById(`map-${id}`);
         
@@ -380,7 +486,7 @@
         
         let searchName = name.replace(/\[.*?\]/g, '').trim(); 
         
-        // 這裡加上了 &hl=zh-TW
+        // ★★★ 修正點：使用反引號 (`) 和 ${} 正確組合字串 ★★★
         const iframe = document.createElement('iframe');
         iframe.src = `https://maps.google.com/maps?q=${encodeURIComponent(searchName)}&t=&z=15&ie=UTF8&iwloc=&output=embed&hl=zh-TW`;
         iframe.loading = "lazy";
@@ -402,14 +508,14 @@
         } else {
             spot.votes.push(currentUser);
         }
-        renderGroups(); 
+        renderGroups(displayedSpots); 
 
         try {
             await fetch(`${GAS_API_URL}?action=vote&id=${id}&user=${currentUser}&password=${currentPassword}`);
         } catch (e) {
             alert("投票失敗");
             spot.votes = originalVotes;
-            renderGroups();
+            renderGroups(displayedSpots);
         }
     }
 
@@ -462,7 +568,13 @@
 
     function esc(str) {
         if (!str) return '';
-        return str.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        // ★★★ 修正點：使用 &quot; 替換雙引號，避免語法錯誤 ★★★
+        return str.toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 </script>
 </body>
